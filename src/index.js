@@ -4,6 +4,7 @@ const { ethers } = require("ethers");
 const methods = require("./methods");
 const { checkContentValidity } = require("./mods/content/checks");
 const { stringToHex } = require("./helpers/helpers");
+const { checkContentExistence, insufficientBalance, staked } = require("./mods/stake/checks");
 
 const rollup_server = process.env.ROLLUP_HTTP_SERVER_URL;
 console.log("HTTP rollup_server url is " + rollup_server);
@@ -64,7 +65,40 @@ async function handle_advance(data) {
       }
       break;
 
+    case methods.STAKE:
+      const sender = data.metadata.msg_sender;
+      const isContentValid = checkContentExistence(JSONpayload.id, contents);
+      if (isContentValid.success) {
+        const checkInsufficientBalance = insufficientBalance(sender, isContentValid, balanceOf);
+        if (!insufficientBalance) {
+          const hasStaked = staked(sender, isContentValid);
+          if (hasStaked) {
+            await emitReport(checkInsufficientBalance)
+          } else {
+            balanceOf[sender] = balanceOf[sender] - contents[isContentValid.index].amount;
+            subscriptions[sender] = [
+              ...subscriptions[sender] ?? [],
+              isContentValid.data.id
+            ].flat()
 
+            contents[isContentValid.index].subscribers.push(sender);
+            await emitNotice({ state: "contents", data: contents })
+            await emitNotice({ state: "subscriptions", data: subscriptions })
+            await emitNotice({ state: "balances", data: balanceOf })
+
+          }
+        } else {
+          await emitReport(checkInsufficientBalance)
+        }
+      } else {
+        await emitReport(isContentValid)
+      }
+
+
+      console.log(contents)
+      console.log("------------------------------------------")
+
+      break;
 
     default:
       break;
