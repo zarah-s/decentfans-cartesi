@@ -1,6 +1,8 @@
 // XXX even though ethers is not used in the code below, it's very likely
 // it will be used by any DApp, so we are already including it here
+const { ethers } = require("ethers");
 const methods = require("./methods");
+const { checkContentValidity } = require("./mods/content/checks");
 const { stringToHex } = require("./helpers/helpers");
 
 const rollup_server = process.env.ROLLUP_HTTP_SERVER_URL;
@@ -39,6 +41,41 @@ const emitNotice = async (data) => {
 }
 
 async function handle_advance(data) {
+  const payload = data.payload;
+  let JSONpayload = {};
+  const payloadStr = ethers.toUtf8String(payload);
+  JSONpayload = JSON.parse(payloadStr);
+
+  console.log("PAYLOAD========>>", payloadStr)
+  console.log("------------------------------------------")
+
+  switch (JSONpayload.method) {
+    case methods.CREATE_CONTENT:
+      console.log("CREATE CONTENT")
+      console.log("------------------------------------------")
+
+      const contentValidity = checkContentValidity(JSONpayload)
+      if (!contentValidity) {
+        const processed = { ...JSONpayload, method: undefined, author: data.metadata.msg_sender, id: contents.length, subscribers: [] };
+        contents.push(processed)
+        await emitNotice({ state: "contents", data: contents })
+      } else {
+        await emitReport(contentValidity)
+      }
+      break;
+
+
+
+    default:
+      break;
+  }
+
+
+
+
+
+
+
   console.log("Received advance request data " + JSON.stringify(data));
   return "accept";
 }
